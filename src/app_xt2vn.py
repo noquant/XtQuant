@@ -374,8 +374,14 @@ async def before_server_start(app, loop):
     cn_tz = pytz.timezone('Asia/Shanghai')
     id = xtdata.subscribe_whole_quote(['SH', 'SZ', 'HK'])
     g_subscribe_ids["all"] = id
+    prev_dt = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%Y%m%d161100")
+    end_dt = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+    curr_time = datetime.datetime.now().strftime("%H%M%S")
     for stock_code in g_subs_stock_list:
-        id = xtdata.subscribe_quote(stock_code, "1m", start_time="", end_time="", count=1, callback=onSubscribe)
+        if "091500" < curr_time < "161100":
+            xtdata.download_history_data(stock_code=stock_code, period="1m", start_time=prev_dt, end_time=end_dt)
+            save_market_bar_data(ticker=stock_code, period="1m", start_time=prev_dt, end_time=end_dt)
+        id = xtdata.subscribe_quote(stock_code, period="1m", start_time="", end_time="", count=1, callback=onSubscribe)
         g_subscribe_ids[stock_code] = id
     hs300_component, csi500_component, csi1000_component = get_a_index_component()
     all_a_tickers = get_all_a_tickers()
