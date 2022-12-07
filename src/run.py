@@ -11,6 +11,7 @@ if __name__ == "__main__":
     if "08:45" < time.strftime('%H:%M') < "16:11":
         main()
     schedule.every().day.at("08:45").do(main)
+    print("xtdata 定时任务 进程")
     while True:
         schedule.run_pending()
         time.sleep(1)
