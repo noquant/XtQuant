@@ -32,17 +32,29 @@ mdb = MysqlDatabase()
 
 # 启动就订阅关注股票
 from mysql.connector import connect
-g_mysql_conn = connect(user='admin', password='admin', host='192.168.12.110', database='st', port='3309')
-with g_mysql_conn.cursor() as _cursor:
-    sql = "select s_code,display_name,list_dt,delist_dt,s_type,s_group from tb_monitor_security where s_type in ('lof','etf','stock');"
-    _cursor.execute(sql)
-    all = _cursor.fetchall()
-    df = pd.DataFrame(all, columns=['s_code','display_name','begin_date','end_date','s_type','s_group'])
-    g_subs_stock_list = ["000001.SH"]
-    for s in df['s_code'].tolist():
-        c,e = s.split('.')
-        g_subs_stock_list.append(c + '.' + Exchange_VT2XT[e])
+g_subs_stock_list = ["000001.SH"]
 
+def get_subs_stock_list():
+    """"""
+    global g_subs_stock_list
+    mysql_conn = connect(user='admin', password='admin', host='192.168.12.110', database='st', port='3309')
+    try:
+        with mysql_conn.cursor() as _cursor:
+            sql = "select s_code,display_name,list_dt,delist_dt,s_type,s_group from tb_monitor_security where s_type in ('lof','etf','stock');"
+            _cursor.execute(sql)
+            all = _cursor.fetchall()
+            if len(all) > 0:
+                # 重新更新，需要初始化
+                g_subs_stock_list = ["000001.SH"]
+                df = pd.DataFrame(all, columns=['s_code','display_name','begin_date','end_date','s_type','s_group'])
+                for s in df['s_code'].tolist():
+                    c,e = s.split('.')
+                    g_subs_stock_list.append(c + '.' + Exchange_VT2XT[e])
+    except Exception as e:
+        print(e)
+    mysql_conn.close()
+    # 报异常，返回老的list
+    return g_subs_stock_list
 
 def save_local_bar_data(ticker, period, start_time, end_time, dividend_type='front'):
     """"""
@@ -181,7 +193,8 @@ async def before_server_start(app, loop):
     prev_dt = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%Y%m%d161100")
     end_dt = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     curr_time = datetime.datetime.now().strftime("%H%M%S")
-    for stock_code in g_subs_stock_list:
+    # 先更新全部变量
+    for stock_code in get_subs_stock_list():
         if "091500" < curr_time < "161100":
             xtdata.download_history_data(stock_code=stock_code, period="1m", start_time=prev_dt, end_time=end_dt)
             save_market_bar_data(ticker=stock_code, period="1m", start_time=prev_dt, end_time=end_dt)
@@ -737,7 +750,7 @@ async def taskFunc(app):
             # 每天需要更新000001.SH这个数据，确保其他下载正常
             # period = "1m"
             prev_time = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%Y%m%d161100")
-            for ticker in tqdm(["000001.SH"] + stock_ticker):
+            for ticker in tqdm(get_subs_stock_list()):
                 xtdata.download_history_data(stock_code=ticker, period="1m", start_time=prev_time)
                 xtdata.download_history_data(stock_code=ticker, period="1d", start_time=prev_time)
                 #
